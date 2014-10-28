@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta charset="utf-8">
+<meta http-equiv="Content-Language" content="en">
+<meta name="language" content="english">
+<title>BART</title>
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<link rel="stylesheet" type="text/css"  href="style.css"/>
+</head>
+<body>
+<svg>
+<g id="counties"/>
+<g id="bart-stations"/>
+</svg>
+<button id="playbutton">Play</button>
+<div id="monthbuttons"></div>
+<div class="tooltip"></div>
+<script>
+// Get the width and the height from the svg element
+var width = d3.select("svg").style("width").replace(/px/,"");
+var height = d3.select("svg").style("height").replace(/px/,"");
+
+// Container for stations
+var bg = d3.select("#bart-stations");
+
+// Container for the months
+var mb = d3.select("#monthbuttons");
+
+// Set up the projection
+var projection = d3.geo.albers()
+projection.rotate([122.204348,0.0]); // Calculated center. Closest to Coliseum 
+projection.center([0,37.7377865]); // Calculated center. Closest to Coliseum
+projection.translate([width / 2, height / 2]);
+projection.scale(90000); // Would be nice to figure out a programatic way of setting the scale
+
+// The path. Garbage in, magic out.
+var path = d3.geo.path()
+	.projection(projection);
+
+// The currently selected month, and a station if one is selected
+var selected = {"month":"","station":""};
+
+// Circle radius varies according to sqrt of ridership
+// As long as that is true it can be further scaled by any linear factor
+var ridershipScalingFactor = 5;
+
+// Animation delay for each month when the play button is pressed
+var animationDelay = 150;
+
+// Load County outlines
+loadGeoJson("bay_area_counties.json");
+
+// Load station locations and meta data
+// Sourced from http://api.bart.gov/docs/stn/stns.aspx
+loadBartStations();
+
+// List of all the months currently covered.
+// Every time a new xlxs is released it needs to be manually converted to a csv
+// and an entry needs to be added to this array.
+var months = ["2008-01","2008-02","2008-03","2008-04","2008-05","2008-06","2008-07","2008-08","2008-09","2008-10","2008-11","2008-12",
+	      "2009-01","2009-02","2009-03","2009-04","2009-05","2009-06","2009-07","2009-08","2009-09","2009-10","2009-11","2009-12",
+	      "2010-01","2010-02","2010-03","2010-04","2010-05","2010-06","2010-07","2010-08","2010-09","2010-10","2010-11","2010-12",
+	      "2011-01","2011-02","2011-03","2011-04","2011-05","2011-06","2011-07","2011-08","2011-09","2011-10","2011-11","2011-12",
+	      "2012-01","2012-02","2012-03","2012-04","2012-05","2012-06","2012-07","2012-08","2012-09","2012-10","2012-11","2012-12",
+	      "2013-01","2013-02","2013-03","2013-04","2013-05","2013-06","2013-07","2013-08","2013-09","2013-10","2013-11","2013-12",
+	      "2014-01","2014-02","2014-03","2014-04","2014-05","2014-06","2014-07","2014-08","2014-09"];
+
+// Load ridership for each month from monthly csv files
+loadRidership(months);
+
+// Add a button for each month loaded
+monthButtons();
+
+// Make fake stations for ridership estimates for future stations
+// Ridership estimates pulled from Environmental Impact Reports
+// (Would love to find this for the SFO extension)
+addStation("WSXT", -121.939616,37.501836, 4700);
+addStation("eBART", -121.7854, 37.996247, 3900);
+
+// Set up the play button
+setupPlayButton();
+
+////////////////////////////////////////////////////////////////////////////////
+//     Functions follow. Global scope code should be done above this line     //
+////////////////////////////////////////////////////////////////////////////////
+
+function setupPlayButton() {
+	d3.select("#playbutton")
+	.text("\u25B6")
+	.on("click", function() {
+		if (selected.month === months[months.length - 1])
+			// If we are at the last month go back to the beginning
+			tr = setMonth(bg.selectAll("circle.bart").transition(), months[0]);
+		else
+			play();
+	});
+}
+
+function loadGeoJson(p) {
+	d3.json(p, loadGeoJsonHandler);
+}
+
+function loadGeoJsonHandler(json) {
+	d3.select("#counties").selectAll("path")
+	.data(json.features).enter().append("path")
+	.attr("id", function (d) { return (d.properties.NAME); })
+	// LSAD is always "County" at the moment
+	.attr("class", function (d) { return (d.properties.LSAD) })
+	.attr("d", path)
+	.on("click", function (which) {
+		var to_point = d3.geo.centroid(which);
+
+		projection.rotate([-to_point[0],0]);
+		projection.center([0,to_point[1]]);
+
+		bg.selectAll("path,circle").transition().duration(2000).attr("d", path)
+		.attr("cx", function(d) {
+			// Only circles have location, not paths
+			if (d.location !== undefined)
+				return projection(d.location)[0];
+		})
+		.attr("cy", function(d) {
+			// Only circles have location, not paths
+			if (d.location !== undefined)
+				return projection(d.location)[1];
+		});
+	});
+}
+
+function play() {
+	// Find the selected month
+	for (var i = 0; i < months.length - 1; i++) {
+		if (months[i] === selected.month) {
+			break;
+		}
+	}
+
+	// Start a transition
+	var tr = bg.selectAll("circle.bart").transition();
+
+	// Transition to each following month in order
+	for (; i < months.length; i++) {
+		tr = setMonth(tr, months[i]);
+	}
+}
+
+function radius(ridership) {
+	if (ridership === undefined) return 0;  // For stations opened since data began
+	return Math.sqrt(ridership) / ridershipScalingFactor;
+}
+
+function setMonth(s, n) {
+	// Select the propper month button
+	s = s.transition().duration(animationDelay)
+	.each("start", function() {
+		// XXX: This runs for each station
+		// XXX: This results in station * months calls, currently 3542 for each call to play()
+		// XXX: So far each() is the best way I've found to do this
+		mb.select("#y" + selected.month).attr("class", "monthbutton");
+		selected.month = n;
+		mb.select("#y" + selected.month).attr("class", "monthbutton monthbuttonselected");
+	});
+
+	// One station is selected
+	if (selected.station !== "") {
+		return s
+		.attr("class", function(d) {
+			if (d.abbr === selected.station)
+				return "bart bartselected";
+			return "bart bartunselected";
+		})
+		.attr("r", function(d) {
+			if (d.ridership[n] === undefined) return 0; // For stations opened since data began
+			if (d.abbr === selected.station)
+				return radius(d.ridership[n].total);
+			return radius(d.ridership[n][selected.station]);
+		});
+	}
+
+	// No station is selected
+ 	return s.attr("r", function(d) {
+		try {
+			return radius(d.ridership[n].total);
+		} catch (TypeError) {
+			return 0;
+		}
+
+		// XXX: Dead code follows
+		if (typeof(d) === "undefined") return;
+		if (d.ridership === undefined) return 0; // For stations opened since data began
+		if (d.ridership[n] === undefined) return 0; // For stations opened since data began
+		return radius(d.ridership[n].total);
+	});
+}
+
+function loadBartStations() {
+	d3.xml("bart-stations.xml", loadBartStationsHandler);
+}
+
+function loadBartStationsHandler(xml) {
+	// BART uses two letter abbreviations in ridership spreadsheets and four letter abbreviations in their api
+	var abbrs = {"12":"12TH","16":"16TH","19":"19TH","24":"24TH","AS":"ASHB","BP":"BALB","BF":"BAYF","CV":"CAST","CC":"CIVC","CM":"COLM","CL":"COLS","CN":"CONC","DC":"DALY","BK":"DBRK","EN":"DELN","ED":"DUBL","EM":"EMBR","FM":"FRMT","FV":"FTVL","GP":"GLEN","HY":"HAYW","LF":"LAFY","LM":"LAKE","MA":"MCAR","MB":"MLBR","MT":"MONT","NB":"NBRK","NC":"NCON","OR":"ORIN","PH":"PHIL","WP":"PITT","EP":"PLZA","PL":"POWL","RM":"RICH","RR":"ROCK","SL":"SANL","SB":"SBRN","SO":"SFIA","SH":"SHAY","SS":"SSAN","UC":"UCTY","WC":"WCRK","WD":"WDUB","OW":"WOAK"};
+	var s = d3.select(xml).selectAll("station")[0];
+	var c =  bg.selectAll("circle.bart");
+	var stations = c.data();
+
+	for (var i = 0; i < s.length; i++) {
+		var abbreviation = d3.select(s[i]).select("abbr").text();
+		var j;
+		// Search for an existing record
+		for (j = 0; j < stations.length; j++) {
+			if (stations[j].abbr === abbreviation) {
+				break;
+			}
+		}
+		// Create a new record if it doesn't exist yet
+		if (j === stations.length) {
+			stations.push(new Object());
+		}
+		// Grab all the data from the xml record
+		var t = stations[j];
+
+		t.abbr = abbreviation;
+		t.id = "x" + abbreviation;
+		t.short_abbr = abbrs[abbreviation];
+
+		t.name = d3.select(s[i]).select("name").text();
+		t.gtfs_latitude = d3.select(s[i]).select("gtfs_latitude").text();
+		t.gtfs_longitude = d3.select(s[i]).select("gtfs_longitude").text();
+		t.address = d3.select(s[i]).select("address").text();
+		t.city = d3.select(s[i]).select("city").text();
+		t.county = d3.select(s[i]).select("county").text();
+		t.state = d3.select(s[i]).select("state").text();
+		t.zipcode = d3.select(s[i]).select("zipcode").text();
+
+		t.location = [parseFloat(t.gtfs_longitude),parseFloat(t.gtfs_latitude)];
+	}
+
+	c.data(stations, function(d) { return d.abbr; })
+	.enter()
+	.append("circle")
+	.attr("class", "bart")
+	.attr("id", function(d) {
+		return d.id;
+	});
+
+	c =  bg.selectAll("circle.bart");
+	c.attr("cx", function(d) {
+		return projection(d.location)[0];
+	})
+
+	.attr("cy", function(d) {
+		return projection(d.location)[1];
+	})
+	.on("mouseover", showTooltip)
+	.on("mouseout", hideTooltip)
+	.on("click", function (d) {
+		selected.station = d.abbr;
+		// This select includes any dummy stations, intentionally causing them to disappear
+		// Seems the simplest way to deal with the lack of predicted per station ridership
+		setMonth(d3.selectAll("circle.bart").transition(), selected.month);
+	});
+}
+
+function loadRidership(array) {
+	for (var i = 0; i < array.length; i++)
+		loadMonth("ridership/" + array[i] + ".csv");
+}
+
+function showTooltip(d) {
+		d3.select(".tooltip").html(d.name + "<br/>" + d.ridership[selected.month].total)
+		.style("left", (d3.event.pageX) + "px")     
+                .style("top", (d3.event.pageY - 28) + "px")
+		.style("visibility", "visible");
+}
+
+function hideTooltip(d) {
+		d3.select(".tooltip").style("visibility", "hidden");
+}
+
+function loadMonth(name) {
+	// This function is defined inline so it has loadMonth()'s copy of name in scope
+	d3.csv(name, function(csv) {
+		// BART uses two letter abbreviations in ridership spreadsheets and four letter abbreviations in their api
+		var abbrs = {"12":"12TH","16":"16TH","19":"19TH","24":"24TH","AS":"ASHB","BP":"BALB","BF":"BAYF","CV":"CAST","CC":"CIVC","CM":"COLM","CL":"COLS","CN":"CONC","DC":"DALY","BK":"DBRK","EN":"DELN","ED":"DUBL","EM":"EMBR","FM":"FRMT","FV":"FTVL","GP":"GLEN","HY":"HAYW","LF":"LAFY","LM":"LAKE","MA":"MCAR","MB":"MLBR","MT":"MONT","NB":"NBRK","NC":"NCON","OR":"ORIN","PH":"PHIL","WP":"PITT","EP":"PLZA","PL":"POWL","RM":"RICH","RR":"ROCK","SL":"SANL","SB":"SBRN","SO":"SFIA","SH":"SHAY","SS":"SSAN","UC":"UCTY","WC":"WCRK","WD":"WDUB","OW":"WOAK"};
+		c = bg.selectAll("circle.bart");
+		var stations = c.data();
+		var n = name.split(".")[0].split("/")[1];
+		var ridershipTotal = 0;
+
+		for (var i = 0; i < csv.length; i++) {
+			var abbreviation = abbrs[csv[i][""]];
+			var j;
+			for (j = 0; j < stations.length; j++) {
+				if (stations[j].abbr === abbreviation) {
+					break;
+				}
+			}
+			if (j === stations.length) {
+				stations.push(new Object());
+			}
+			var t = stations[j];
+			t.abbr = abbreviation;
+			t.id = "x" + stations[j].abbr;
+			if (t.ridership === undefined) {
+				t.ridership = new Object();
+			}
+			t.ridership[n] = new Object;
+			t.ridership[n].total = 0;
+			for (var key in csv[i])
+			{
+				if (key !== "") {
+					t.ridership[n][abbrs[key]] = parseInt(csv[i][key].replace(/,/g,''));
+					t.ridership[n].total += t.ridership[n][abbrs[key]];
+				}
+			}
+			ridershipTotal += t.ridership[n].total;
+		}
+
+		c.data(stations, function(d) { return d.abbr; })
+		.enter()
+		.append("circle")
+		.attr("class", "bart")
+		.attr("id", function(d) {
+			return d.id;
+		});
+
+		var btn = d3.select("button#y" + n);
+
+		var h = ridershipTotal * height / 5000000; 
+		btn.style("height", h + "px");
+
+		var btnd = btn.data();
+		btnd[0].total = ridershipTotal;
+		btn.data(btnd);
+
+		if (n === months[0])
+			setMonth(d3.selectAll("circle.bart").transition(), n);
+	});
+}
+
+// This adds a dummy station used for eBART and WSXT projected ridership
+function addStation(abbr, lon, lat, ridership) {
+	var data = new Object();
+	data.location = [lon,lat];
+	data.abbr = abbr;
+	data.ridership = new Object();
+
+	for (var i = 0; i < months.length; i++) {
+		data.ridership[months[i]] = new Object();
+		data.ridership[months[i]].total = ridership;
+	}
+
+	var xy = projection(data.location);
+
+	d3.select("svg").append("circle").data([data])
+	.attr("class", "bart")
+	.attr("id", abbr)
+	.attr("cx", xy[0])
+	.attr("cy", xy[1]);
+}
+
+function monthButtons() {
+	var monthNames = ["January","Febuary","March","April","May","June",
+			"July","August","September","October","November","December"];
+	var startYear = months[0].split("-")[0];
+	var finalYear = months[months.length - 1].split("-")[0];
+
+	for (var i = startYear; i<= finalYear; i++) {
+		var year = mb.append("span").attr("id", "z" + i).attr("class", "year");
+		for (var j = 1; j <= 12; j++) {
+			var n = i + "-" + ((j < 10) ? ("0" + j) : j);
+			var order;
+			for (order = 0; order < months.length; order++)
+				if (months[order] === n)
+					break;
+			if (order === months.length) return;
+			year.append("button")
+			.attr("id", "y" + n)
+			.attr("class", "monthbutton")
+			.datum({"name":n})
+			.text(monthNames[j-1].substring(0,1))
+			.on("click", function(d) {
+				setMonth(bg.selectAll("circle.bart").transition(), d.name)
+			});
+		}
+	}
+}
+
+</script>
+</body>

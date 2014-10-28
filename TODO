@@ -1,0 +1,16 @@
+Load added months without source changes.
+Finish whatever it was I started with bi-directional data.
+Tooltips for eBART/WSXT.
+Fix XXX in setMonth.
+Use relative positioning for tooltips.
+Eliminate loaded()?
+Contemplate proper behavior before station locations are loaded.
+Choose custom centroids.
+Move abbreviation conversion into api data load. ... But then two letters would be cannonical.
+Fix click to move.
+Automatically determine circle scale factor to not fully overlap.
+Automatically determine width for month bars.
+Recenter reactively.
+Possibly change scaling factor when one station is selected.
+Allow transition between "station selected" back to "normal" mode.
+Change tooltips when in "station selected" mode.
