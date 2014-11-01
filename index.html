@@ -290,7 +290,8 @@ function loadMonth(name) {
 		var ridershipTotal = 0;
 
 		for (var i = 0; i < csv.length; i++) {
-			var abbreviation = abbrs[csv[i][""]];
+			var short_abbr = csv[i][""];
+			var abbreviation = abbrs[short_abbr];
 			var j;
 			for (j = 0; j < stations.length; j++) {
 				if (stations[j].abbr === abbreviation) {
@@ -304,9 +305,8 @@ function loadMonth(name) {
 			var t = stations[j];
 
 			t.abbr = abbreviation;
-			if (t.ridership === undefined) {
-				t.ridership = new Object();
-			}
+			t.short_abbr = short_abbr;
+			t.ridership = t.ridership || new Object();
 			t.ridership[n] = new Object;
 			t.ridership[n].total = 0;
 			for (var key in csv[i])
@@ -319,12 +319,15 @@ function loadMonth(name) {
 			ridershipTotal += t.ridership[n].total;
 		}
 
+		// Create an SVG element for the stations.
+		// XXX: Given that the x/y (lat/long) location isn't necessarily known yet this can trigger a flash of all the elements at 0,0
 		c.data(stations, function(d) { return d.abbr; })
 		.enter()
 		.append("circle")
 		.attr("class", "bart")
 		.attr("id", stationId);
 
+		// XXX: Setup the height on the month button.
 		var btn = d3.select("button#y" + n);
 
 		var h = ridershipTotal * height / 5000000; 
