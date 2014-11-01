@@ -194,6 +194,10 @@ function setMonth(s, n) {
 	});
 }
 
+function stationId(d) {
+	return "x" + d.abbr;
+}
+
 function loadBartStations() {
 	d3.xml("bart-stations.xml", loadBartStationsHandler);
 }
@@ -201,12 +205,13 @@ function loadBartStations() {
 function loadBartStationsHandler(xml) {
 	// BART uses two letter abbreviations in ridership spreadsheets and four letter abbreviations in their api
 	var abbrs = {"12":"12TH","16":"16TH","19":"19TH","24":"24TH","AS":"ASHB","BP":"BALB","BF":"BAYF","CV":"CAST","CC":"CIVC","CM":"COLM","CL":"COLS","CN":"CONC","DC":"DALY","BK":"DBRK","EN":"DELN","ED":"DUBL","EM":"EMBR","FM":"FRMT","FV":"FTVL","GP":"GLEN","HY":"HAYW","LF":"LAFY","LM":"LAKE","MA":"MCAR","MB":"MLBR","MT":"MONT","NB":"NBRK","NC":"NCON","OR":"ORIN","PH":"PHIL","WP":"PITT","EP":"PLZA","PL":"POWL","RM":"RICH","RR":"ROCK","SL":"SANL","SB":"SBRN","SO":"SFIA","SH":"SHAY","SS":"SSAN","UC":"UCTY","WC":"WCRK","WD":"WDUB","OW":"WOAK"};
-	var s = d3.select(xml).selectAll("station")[0];
+	var xs = d3.select(xml).selectAll("station")[0];
 	var c =  bg.selectAll("circle.bart");
 	var stations = c.data();
 
-	for (var i = 0; i < s.length; i++) {
-		var abbreviation = d3.select(s[i]).select("abbr").text();
+	for (var i = 0; i < xs.length; i++) {
+		var s = d3.select(xs[i]);
+		var abbreviation = s.select("abbr").text();
 		var j;
 		// Search for an existing record
 		for (j = 0; j < stations.length; j++) {
@@ -215,24 +220,21 @@ function loadBartStationsHandler(xml) {
 			}
 		}
 		// Create a new record if it doesn't exist yet
-		if (j === stations.length) {
-			stations.push(new Object());
-		}
+		stations[j] = stations[j] || new Object();
 		// Grab all the data from the xml record
 		var t = stations[j];
 
 		t.abbr = abbreviation;
-		t.id = "x" + abbreviation;
 		t.short_abbr = abbrs[abbreviation];
 
-		t.name = d3.select(s[i]).select("name").text();
-		t.gtfs_latitude = d3.select(s[i]).select("gtfs_latitude").text();
-		t.gtfs_longitude = d3.select(s[i]).select("gtfs_longitude").text();
-		t.address = d3.select(s[i]).select("address").text();
-		t.city = d3.select(s[i]).select("city").text();
-		t.county = d3.select(s[i]).select("county").text();
-		t.state = d3.select(s[i]).select("state").text();
-		t.zipcode = d3.select(s[i]).select("zipcode").text();
+		t.name = s.select("name").text();
+		t.gtfs_latitude = s.select("gtfs_latitude").text();
+		t.gtfs_longitude = s.select("gtfs_longitude").text();
+		t.address = s.select("address").text();
+		t.city = s.select("city").text();
+		t.county = s.select("county").text();
+		t.state = s.select("state").text();
+		t.zipcode = s.select("zipcode").text();
 
 		t.location = [parseFloat(t.gtfs_longitude),parseFloat(t.gtfs_latitude)];
 	}
@@ -241,9 +243,7 @@ function loadBartStationsHandler(xml) {
 	.enter()
 	.append("circle")
 	.attr("class", "bart")
-	.attr("id", function(d) {
-		return d.id;
-	});
+	.attr("id", stationId);
 
 	c =  bg.selectAll("circle.bart");
 	c.attr("cx", function(d) {
@@ -297,12 +297,13 @@ function loadMonth(name) {
 					break;
 				}
 			}
-			if (j === stations.length) {
-				stations.push(new Object());
-			}
+			// Create a new record if it doesn't exist yet
+			stations[j] = stations[j] || new Object();
+
+			// Grab all the data for the station
 			var t = stations[j];
+
 			t.abbr = abbreviation;
-			t.id = "x" + stations[j].abbr;
 			if (t.ridership === undefined) {
 				t.ridership = new Object();
 			}
@@ -322,9 +323,7 @@ function loadMonth(name) {
 		.enter()
 		.append("circle")
 		.attr("class", "bart")
-		.attr("id", function(d) {
-			return d.id;
-		});
+		.attr("id", stationId);
 
 		var btn = d3.select("button#y" + n);
 
