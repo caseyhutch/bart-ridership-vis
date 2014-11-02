@@ -283,64 +283,65 @@ function showTooltip(d) {
 function hideTooltip(d) {
 		d3.select(".tooltip").style("visibility", "hidden");
 }
-
 function loadMonth(name) {
-	// This function is defined inline so it has loadMonth()'s copy of name in scope
-	d3.csv(name, function(csv) {
-		c = bg.selectAll("circle.bart");
-		var stations = c.data();
-		var n = name.split(".")[0].split("/")[1];
-		var ridershipTotal = 0;
+	d3.csv(name, function(csv) { loadMonthHandler(name, csv); });
+}
 
-		for (var i = 0; i < csv.length; i++) {
-			var short_abbr = csv[i][""];
-			var j;
-			for (j = 0; j < stations.length; j++) {
-				if (stations[j].short_abbr === short_abbr) {
-					break;
-				}
+function loadMonthHandler(name, csv) {
+	c = bg.selectAll("circle.bart");
+	var stations = c.data();
+	var n = name.split(".")[0].split("/")[1];
+	var ridershipTotal = 0;
+
+	for (var i = 0; i < csv.length; i++) {
+		var short_abbr = csv[i][""];
+		var j;
+		for (j = 0; j < stations.length; j++) {
+			if (stations[j].short_abbr === short_abbr) {
+				break;
 			}
-			// Create a new record if it doesn't exist yet
-			stations[j] = stations[j] || new Object();
-
-			// Grab all the data for the station
-			var t = stations[j];
-
-			t.short_abbr = short_abbr;
-			t.ridership = t.ridership || new Object();
-			t.ridership[n] = new Object;
-			t.ridership[n].total = 0;
-			for (var key in csv[i])
-			{
-				if (key !== "") {
-					t.ridership[n][key] = parseInt(csv[i][key].replace(/,/g,''));
-					t.ridership[n].total += t.ridership[n][key];
-				}
-			}
-			ridershipTotal += t.ridership[n].total;
 		}
 
-		// Create an SVG element for the stations.
-		// XXX: Given that the x/y (lat/long) location isn't necessarily known yet this can trigger a flash of all the elements at 0,0
-		c.data(stations)
-		.enter()
-		.append("circle")
-		.attr("class", "bart")
-		.attr("id", stationId);
+		// Create a new record if it doesn't exist yet
+		stations[j] = stations[j] || new Object();
 
-		// XXX: Setup the height on the month button.
-		var btn = d3.select("button#y" + n);
+		// Grab all the data for the station
+		var t = stations[j];
 
-		var h = ridershipTotal * height / 5000000; 
-		btn.style("height", h + "px");
+		t.short_abbr = short_abbr;
+		t.ridership = t.ridership || new Object();
+		t.ridership[n] = new Object;
+		t.ridership[n].total = 0;
+		for (var key in csv[i])
+		{
+			if (key !== "") {
+				t.ridership[n][key] = parseInt(csv[i][key].replace(/,/g,''));
+				t.ridership[n].total += t.ridership[n][key];
+			}
+		}
+		ridershipTotal += t.ridership[n].total;
+	}
 
-		var btnd = btn.data();
-		btnd[0].total = ridershipTotal;
-		btn.data(btnd);
+	// Create an SVG element for the stations.
+	// XXX: Given that the x/y (lat/long) location isn't necessarily known yet this can trigger a flash of all the elements at 0,0
+	c.data(stations)
+	.enter()
+	.append("circle")
+	.attr("class", "bart")
+	.attr("id", stationId);
 
-		if (n === months[0])
-			setMonth(d3.selectAll("circle.bart").transition(), n);
-	});
+	// XXX: Setup the height on the month button.
+	var btn = d3.select("button#y" + n);
+
+	var h = ridershipTotal * height / 5000000; 
+	btn.style("height", h + "px");
+
+	var btnd = btn.data();
+	btnd[0].total = ridershipTotal;
+	btn.data(btnd);
+
+	if (n === months[0])
+		setMonth(d3.selectAll("circle.bart").transition(), n);
 }
 
 // This adds a dummy station used for eBART and WSXT projected ridership
