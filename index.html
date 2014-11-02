@@ -112,7 +112,7 @@ function loadGeoJsonHandler(json) {
 	// LSAD is always "County" at the moment
 	.attr("class", function (d) { return (d.properties.LSAD) })
 	.attr("d", path)
-	.on("click", clickToCenter(d));
+	.on("click", clickToCenter);
 }
 
 function clickToCenter(which) {
