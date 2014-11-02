@@ -186,12 +186,6 @@ function setMonth(s, n) {
 		} catch (TypeError) {
 			return 0;
 		}
-
-		// XXX: Dead code follows
-		if (typeof(d) === "undefined") return;
-		if (d.ridership === undefined) return 0; // For stations opened since data began
-		if (d.ridership[n] === undefined) return 0; // For stations opened since data began
-		return radius(d.ridership[n].total);
 	});
 }
 
@@ -209,7 +203,6 @@ function createStationSVG(stations) {
 	stationSVG()
 	.data(stations)
 	.enter()
-// XXX
 	.append("circle")
 	.attr("class", "bart")
 	.attr("id", stationId)
@@ -330,6 +323,7 @@ function loadMonthHandler(name, csv) {
 	btnd[0].total = ridershipTotal;
 	btn.data(btnd);
 
+	// Whenever the first month loads transition everything in
 	if (n === months[0])
 		setMonth(stationSVG().transition(), n);
 }
