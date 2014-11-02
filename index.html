@@ -174,7 +174,7 @@ function setMonth(s, n) {
 		.attr("r", function(d) {
 			if (d.ridership[n] === undefined) return 0; // For stations opened since data began
 			if (d.short_abbr === selected.station)
-				return radius(d.ridership[n].total);
+				return radius(d.ridership[n].total_exits);
 			return radius(d.ridership[n][selected.station]);
 		});
 	}
@@ -182,7 +182,7 @@ function setMonth(s, n) {
 	// No station is selected
  	return s.attr("r", function(d) {
 		try {
-			return radius(d.ridership[n].total);
+			return radius(d.ridership[n].total_exits);
 		} catch (TypeError) {
 			return 0;
 		}
@@ -253,7 +253,8 @@ function loadBartStationsHandler(xml) {
 			state: s.select("state").text(),
 			zipcode: s.select("zipcode").text(),
 			location: [parseFloat(s.select("gtfs_longitude").text()),parseFloat(s.select("gtfs_latitude").text())],
-			short_abbr: shortAbbreviation(s.select("abbr").text())
+			short_abbr: shortAbbreviation(s.select("abbr").text()),
+			ridership: []
 		});
 	}
 
@@ -269,7 +270,7 @@ function loadRidership(array) {
 }
 
 function showTooltip(d) {
-		d3.select(".tooltip").html(d.name + "<br/>" + d.ridership[selected.month].total)
+		d3.select(".tooltip").html(d.name + "<br/>" + d.ridership[selected.month].total_exits)
 		.style("left", (d3.event.pageX) + "px")     
                 .style("top", (d3.event.pageY - 28) + "px")
 		.style("visibility", "visible");
@@ -284,14 +285,14 @@ function loadMonth(name) {
 
 function loadMonthHandler(name, csv) {
 	var stations = stationSVG().data();
-	var n = name.split(".")[0].split("/")[1];
+	var month = name.split(".")[0].split("/")[1];
 	var ridershipTotal = 0;
 
 	for (var i = 0; i < csv.length; i++) {
-		var short_abbr = csv[i][""];
+		var exit_station = csv[i][""];
 		var j;
 		for (j = 0; j < stations.length; j++) {
-			if (stations[j].short_abbr === short_abbr) {
+			if (stations[j].short_abbr === exit_station) {
 				break;
 			}
 		}
@@ -299,22 +300,22 @@ function loadMonthHandler(name, csv) {
 		// Grab all the data for the station
 		var t = stations[j];
 
-		t.short_abbr = short_abbr;
-		t.ridership = t.ridership || new Object();
-		t.ridership[n] = new Object;
-		t.ridership[n].total = 0;
-		for (var key in csv[i])
+		t.ridership[month] = {total_exits: 0};
+		for (var entry_station in csv[i])
 		{
-			if (key !== "") {
-				t.ridership[n][key] = parseInt(csv[i][key].replace(/,/g,''));
-				t.ridership[n].total += t.ridership[n][key];
+			if (entry_station !== "") {
+				var riders = parseInt(csv[i][entry_station].replace(/,/g,''));
+				t.ridership[month][entry_station] = riders;
+				t.ridership[month].total_exits += riders;
 			}
 		}
-		ridershipTotal += t.ridership[n].total;
+		ridershipTotal += t.ridership[month].total_exits;
 	}
+	monthLoaded(month, ridershipTotal);
+}
 
-	// XXX: Setup the height on the month button.
-	var btn = d3.select("button#y" + n);
+function monthLoaded(month, ridershipTotal) {
+	var btn = d3.select("button#y" + month);
 
 	var h = ridershipTotal * height / 5000000; 
 	btn.style("height", h + "px");
@@ -324,8 +325,8 @@ function loadMonthHandler(name, csv) {
 	btn.data(btnd);
 
 	// Whenever the first month loads transition everything in
-	if (n === months[0])
-		setMonth(stationSVG().transition(), n);
+	if (month === months[0])
+		setMonth(stationSVG().transition(), month);
 }
 
 // This adds a dummy station used for eBART and WSXT projected ridership
