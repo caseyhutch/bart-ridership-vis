@@ -66,17 +66,14 @@ var months = ["2008-01","2008-02","2008-03","2008-04","2008-05","2008-06","2008-
 	      "2013-01","2013-02","2013-03","2013-04","2013-05","2013-06","2013-07","2013-08","2013-09","2013-10","2013-11","2013-12",
 	      "2014-01","2014-02","2014-03","2014-04","2014-05","2014-06","2014-07","2014-08","2014-09"];
 
-// Load ridership for each month from monthly csv files
-loadRidership(months);
-
 // Add a button for each month loaded
 monthButtons();
 
 // Make fake stations for ridership estimates for future stations
 // Ridership estimates pulled from Environmental Impact Reports
 // (Would love to find this for the SFO extension)
-addStation("WSXT", -121.939616,37.501836, 4700);
-addStation("eBART", -121.7854, 37.996247, 3900);
+addStation("Warm Springs / South Fremont Station", "WSXT", -121.939616,37.501836, 4700);
+addStation("East Contra Costa BART Extension", "eBART", -121.7854, 37.996247, 3900);
 
 // Set up the play button
 setupPlayButton();
@@ -85,13 +82,17 @@ setupPlayButton();
 //     Functions follow. Global scope code should be done above this line     //
 ////////////////////////////////////////////////////////////////////////////////
 
+function stationSVG() {
+	return bg.selectAll("circle.bart");
+}
+
 function setupPlayButton() {
 	d3.select("#playbutton")
 	.text("\u25B6")
 	.on("click", function() {
 		if (selected.month === months[months.length - 1])
 			// If we are at the last month go back to the beginning
-			tr = setMonth(bg.selectAll("circle.bart").transition(), months[0]);
+			tr = setMonth(stationSVG().transition(), months[0]);
 		else
 			play();
 	});
@@ -102,29 +103,34 @@ function loadGeoJson(p) {
 }
 
 function loadGeoJsonHandler(json) {
-	d3.select("#counties").selectAll("path")
-	.data(json.features).enter().append("path")
+	d3.select("#counties")
+	.selectAll("path")
+	.data(json.features)
+	.enter()
+	.append("path")
 	.attr("id", function (d) { return (d.properties.NAME); })
 	// LSAD is always "County" at the moment
 	.attr("class", function (d) { return (d.properties.LSAD) })
 	.attr("d", path)
-	.on("click", function (which) {
-		var to_point = d3.geo.centroid(which);
+	.on("click", clickToCenter);
+}
 
-		projection.rotate([-to_point[0],0]);
-		projection.center([0,to_point[1]]);
+function clickToCenter(which) {
+	var to_point = d3.geo.centroid(which);
 
-		bg.selectAll("path,circle").transition().duration(2000).attr("d", path)
-		.attr("cx", function(d) {
-			// Only circles have location, not paths
-			if (d.location !== undefined)
-				return projection(d.location)[0];
-		})
-		.attr("cy", function(d) {
-			// Only circles have location, not paths
-			if (d.location !== undefined)
-				return projection(d.location)[1];
-		});
+	projection.rotate([-to_point[0],0]);
+	projection.center([0,to_point[1]]);
+
+	d3.selectAll("path,circle").transition().duration(2000).attr("d", path)
+	.attr("cx", function(d) {
+		// Only circles have location, not paths
+		if (d.location !== undefined)
+			return projection(d.location)[0];
+	})
+	.attr("cy", function(d) {
+		// Only circles have location, not paths
+		if (d.location !== undefined)
+			return projection(d.location)[1];
 	});
 }
 
@@ -137,7 +143,7 @@ function play() {
 	}
 
 	// Start a transition
-	var tr = bg.selectAll("circle.bart").transition();
+	var tr = stationSVG().transition();
 
 	// Transition to each following month in order
 	for (; i < months.length; i++) {
@@ -166,14 +172,14 @@ function setMonth(s, n) {
 	if (selected.station !== "") {
 		return s
 		.attr("class", function(d) {
-			if (d.abbr === selected.station)
+			if (d.short_abbr === selected.station)
 				return "bart bartselected";
 			return "bart bartunselected";
 		})
 		.attr("r", function(d) {
 			if (d.ridership[n] === undefined) return 0; // For stations opened since data began
-			if (d.abbr === selected.station)
-				return radius(d.ridership[n].total);
+			if (d.short_abbr === selected.station)
+				return radius(d.ridership[n].total_exits);
 			return radius(d.ridership[n][selected.station]);
 		});
 	}
@@ -181,16 +187,52 @@ function setMonth(s, n) {
 	// No station is selected
  	return s.attr("r", function(d) {
 		try {
-			return radius(d.ridership[n].total);
+			return radius(d.ridership[n].total_exits);
 		} catch (TypeError) {
 			return 0;
 		}
+	});
+}
 
-		// XXX: Dead code follows
-		if (typeof(d) === "undefined") return;
-		if (d.ridership === undefined) return 0; // For stations opened since data began
-		if (d.ridership[n] === undefined) return 0; // For stations opened since data began
-		return radius(d.ridership[n].total);
+function stationId(d) {
+	return "x" + d.short_abbr;
+}
+
+// BART uses two letter abbreviations in ridership spreadsheets and four letter abbreviations in their api
+function shortAbbreviation(abbreviation) {
+	var map = {"12TH":"12","16TH":"16","19TH":"19","24TH":"24","ASHB":"AS","BALB":"BP","BAYF":"BF","CAST":"CV","CIVC":"CC","COLM":"CM","COLS":"CL","CONC":"CN","DALY":"DC","DBRK":"BK","DELN":"EN","DUBL":"ED","EMBR":"EM","FRMT":"FM","FTVL":"FV","GLEN":"GP","HAYW":"HY","LAFY":"LF","LAKE":"LM","MCAR":"MA","MLBR":"MB","MONT":"MT","NBRK":"NB","NCON":"NC","ORIN":"OR","PHIL":"PH","PITT":"WP","PLZA":"EP","POWL":"PL","RICH":"RM","ROCK":"RR","SANL":"SL","SBRN":"SB","SFIA":"SO","SHAY":"SH","SSAN":"SS","UCTY":"UC","WCRK":"WC","WDUB":"WD","WOAK":"OW"};
+	return map[abbreviation];
+}
+
+function createStationsSVG(stations) {
+	stationSVG()
+	.data(stations)
+	.enter()
+	.append("circle")
+	.attr("class", "bart")
+	.attr("id", stationId)
+
+	.attr("cx", function(d) {
+		if (d.location === undefined)
+			// If the station location isn't known yet, put the station off canvas.
+			return undefined;
+		return projection(d.location)[0];
+	})
+
+	.attr("cy", function(d) {
+		if (d.location === undefined) {
+			// If the station location isn't known yet, put the station off canvas.
+			return undefined;
+		}
+		return projection(d.location)[1];
+	})
+	.on("mouseover", showTooltip)
+	.on("mouseout", hideTooltip)
+	.on("click", function (d) {
+		selected.station = d.short_abbr;
+		// This select includes any dummy stations, intentionally causing them to disappear
+		// Seems the simplest way to deal with the lack of predicted per station ridership
+		setMonth(stationSVG().transition(), selected.month);
 	});
 }
 
@@ -199,68 +241,32 @@ function loadBartStations() {
 }
 
 function loadBartStationsHandler(xml) {
-	// BART uses two letter abbreviations in ridership spreadsheets and four letter abbreviations in their api
-	var abbrs = {"12":"12TH","16":"16TH","19":"19TH","24":"24TH","AS":"ASHB","BP":"BALB","BF":"BAYF","CV":"CAST","CC":"CIVC","CM":"COLM","CL":"COLS","CN":"CONC","DC":"DALY","BK":"DBRK","EN":"DELN","ED":"DUBL","EM":"EMBR","FM":"FRMT","FV":"FTVL","GP":"GLEN","HY":"HAYW","LF":"LAFY","LM":"LAKE","MA":"MCAR","MB":"MLBR","MT":"MONT","NB":"NBRK","NC":"NCON","OR":"ORIN","PH":"PHIL","WP":"PITT","EP":"PLZA","PL":"POWL","RM":"RICH","RR":"ROCK","SL":"SANL","SB":"SBRN","SO":"SFIA","SH":"SHAY","SS":"SSAN","UC":"UCTY","WC":"WCRK","WD":"WDUB","OW":"WOAK"};
-	var s = d3.select(xml).selectAll("station")[0];
-	var c =  bg.selectAll("circle.bart");
-	var stations = c.data();
+	xs = d3.select(xml).selectAll("station")[0];
+	var stations = [];
 
-	for (var i = 0; i < s.length; i++) {
-		var abbreviation = d3.select(s[i]).select("abbr").text();
-		var j;
-		// Search for an existing record
-		for (j = 0; j < stations.length; j++) {
-			if (stations[j].abbr === abbreviation) {
-				break;
-			}
-		}
-		// Create a new record if it doesn't exist yet
-		if (j === stations.length) {
-			stations.push(new Object());
-		}
-		// Grab all the data from the xml record
-		var t = stations[j];
-
-		t.abbr = abbreviation;
-		t.id = "x" + abbreviation;
-		t.short_abbr = abbrs[abbreviation];
-
-		t.name = d3.select(s[i]).select("name").text();
-		t.gtfs_latitude = d3.select(s[i]).select("gtfs_latitude").text();
-		t.gtfs_longitude = d3.select(s[i]).select("gtfs_longitude").text();
-		t.address = d3.select(s[i]).select("address").text();
-		t.city = d3.select(s[i]).select("city").text();
-		t.county = d3.select(s[i]).select("county").text();
-		t.state = d3.select(s[i]).select("state").text();
-		t.zipcode = d3.select(s[i]).select("zipcode").text();
-
-		t.location = [parseFloat(t.gtfs_longitude),parseFloat(t.gtfs_latitude)];
+	for (var i = 0; i < xs.length; i++) {
+		// Add a new object with all the data for this station from the xml file
+		var s = d3.select(xs[i]);
+		stations.push({
+			name: s.select("name").text(),
+			long_abbr: s.select("abbr").text(),
+			gtfs_latitude: s.select("gtfs_latitude").text(),
+			gtfs_longitude: s.select("gtfs_longitude").text(),
+			address: s.select("address").text(),
+			city: s.select("city").text(),
+			county: s.select("county").text(),
+			state: s.select("state").text(),
+			zipcode: s.select("zipcode").text(),
+			location: [parseFloat(s.select("gtfs_longitude").text()),parseFloat(s.select("gtfs_latitude").text())],
+			short_abbr: shortAbbreviation(s.select("abbr").text()),
+			ridership: []
+		});
 	}
 
-	c.data(stations, function(d) { return d.abbr; })
-	.enter()
-	.append("circle")
-	.attr("class", "bart")
-	.attr("id", function(d) {
-		return d.id;
-	});
+	createStationsSVG(stations);
 
-	c =  bg.selectAll("circle.bart");
-	c.attr("cx", function(d) {
-		return projection(d.location)[0];
-	})
-
-	.attr("cy", function(d) {
-		return projection(d.location)[1];
-	})
-	.on("mouseover", showTooltip)
-	.on("mouseout", hideTooltip)
-	.on("click", function (d) {
-		selected.station = d.abbr;
-		// This select includes any dummy stations, intentionally causing them to disappear
-		// Seems the simplest way to deal with the lack of predicted per station ridership
-		setMonth(d3.selectAll("circle.bart").transition(), selected.month);
-	});
+	// Load ridership for each month from monthly csv files
+	loadRidership(months);
 }
 
 function loadRidership(array) {
@@ -269,7 +275,7 @@ function loadRidership(array) {
 }
 
 function showTooltip(d) {
-		d3.select(".tooltip").html(d.name + "<br/>" + d.ridership[selected.month].total)
+		d3.select(".tooltip").html(d.name + "<br/>" + d.ridership[selected.month].total_exits)
 		.style("left", (d3.event.pageX) + "px")     
                 .style("top", (d3.event.pageY - 28) + "px")
 		.style("visibility", "visible");
@@ -278,87 +284,82 @@ function showTooltip(d) {
 function hideTooltip(d) {
 		d3.select(".tooltip").style("visibility", "hidden");
 }
-
 function loadMonth(name) {
-	// This function is defined inline so it has loadMonth()'s copy of name in scope
-	d3.csv(name, function(csv) {
-		// BART uses two letter abbreviations in ridership spreadsheets and four letter abbreviations in their api
-		var abbrs = {"12":"12TH","16":"16TH","19":"19TH","24":"24TH","AS":"ASHB","BP":"BALB","BF":"BAYF","CV":"CAST","CC":"CIVC","CM":"COLM","CL":"COLS","CN":"CONC","DC":"DALY","BK":"DBRK","EN":"DELN","ED":"DUBL","EM":"EMBR","FM":"FRMT","FV":"FTVL","GP":"GLEN","HY":"HAYW","LF":"LAFY","LM":"LAKE","MA":"MCAR","MB":"MLBR","MT":"MONT","NB":"NBRK","NC":"NCON","OR":"ORIN","PH":"PHIL","WP":"PITT","EP":"PLZA","PL":"POWL","RM":"RICH","RR":"ROCK","SL":"SANL","SB":"SBRN","SO":"SFIA","SH":"SHAY","SS":"SSAN","UC":"UCTY","WC":"WCRK","WD":"WDUB","OW":"WOAK"};
-		c = bg.selectAll("circle.bart");
-		var stations = c.data();
-		var n = name.split(".")[0].split("/")[1];
-		var ridershipTotal = 0;
+	d3.csv(name, function(csv) { loadMonthHandler(name, csv); });
+}
 
-		for (var i = 0; i < csv.length; i++) {
-			var abbreviation = abbrs[csv[i][""]];
-			var j;
-			for (j = 0; j < stations.length; j++) {
-				if (stations[j].abbr === abbreviation) {
-					break;
-				}
+function loadMonthHandler(name, csv) {
+	var stations = stationSVG().data();
+	var month = name.split(".")[0].split("/")[1];
+	var ridershipTotal = 0;
+
+	for (var i = 0; i < csv.length; i++) {
+		var exit_station = csv[i][""];
+		var j;
+		for (j = 0; j < stations.length; j++) {
+			if (stations[j].short_abbr === exit_station) {
+				break;
 			}
-			if (j === stations.length) {
-				stations.push(new Object());
-			}
-			var t = stations[j];
-			t.abbr = abbreviation;
-			t.id = "x" + stations[j].abbr;
-			if (t.ridership === undefined) {
-				t.ridership = new Object();
-			}
-			t.ridership[n] = new Object;
-			t.ridership[n].total = 0;
-			for (var key in csv[i])
-			{
-				if (key !== "") {
-					t.ridership[n][abbrs[key]] = parseInt(csv[i][key].replace(/,/g,''));
-					t.ridership[n].total += t.ridership[n][abbrs[key]];
-				}
-			}
-			ridershipTotal += t.ridership[n].total;
 		}
 
-		c.data(stations, function(d) { return d.abbr; })
-		.enter()
-		.append("circle")
-		.attr("class", "bart")
-		.attr("id", function(d) {
-			return d.id;
-		});
+		// Grab all the data for the station
+		var t = stations[j];
 
-		var btn = d3.select("button#y" + n);
+		t.ridership[month] = {total_exits: 0};
+		for (var entry_station in csv[i])
+		{
+			if (entry_station !== "") {
+				var riders = parseInt(csv[i][entry_station].replace(/,/g,''));
+				t.ridership[month][entry_station] = riders;
+				t.ridership[month].total_exits += riders;
+			}
+		}
+		ridershipTotal += t.ridership[month].total_exits;
+	}
+	monthLoaded(month, ridershipTotal);
+}
 
-		var h = ridershipTotal * height / 5000000; 
-		btn.style("height", h + "px");
+function monthLoaded(month, ridershipTotal) {
+	var btn = d3.select("button#y" + month);
 
-		var btnd = btn.data();
-		btnd[0].total = ridershipTotal;
-		btn.data(btnd);
+	var h = ridershipTotal * height / 5000000; 
+	btn.style("height", h + "px");
 
-		if (n === months[0])
-			setMonth(d3.selectAll("circle.bart").transition(), n);
-	});
+	var btnd = btn.data();
+	btnd[0].total = ridershipTotal;
+	btn.data(btnd);
+
+	// Whenever the first month loads transition everything in
+	if (month === months[0])
+		setMonth(stationSVG().transition(), month);
 }
 
 // This adds a dummy station used for eBART and WSXT projected ridership
-function addStation(abbr, lon, lat, ridership) {
+function addStation(name, long_abbr, lon, lat, ridership) {
 	var data = new Object();
+	data.name = name;
 	data.location = [lon,lat];
-	data.abbr = abbr;
+	data.long_abbr = long_abbr;
+	data.short_abbr = long_abbr[0] + long_abbr[1];
 	data.ridership = new Object();
 
 	for (var i = 0; i < months.length; i++) {
 		data.ridership[months[i]] = new Object();
-		data.ridership[months[i]].total = ridership;
+		data.ridership[months[i]].total_exits = ridership;
 	}
 
 	var xy = projection(data.location);
 
-	d3.select("svg").append("circle").data([data])
+	d3.select("svg")
+	.append("circle")
+	.data([data])
 	.attr("class", "bart")
-	.attr("id", abbr)
+	.attr("id", stationId)
+	.on("mouseover", showTooltip)
+	.on("mouseout", hideTooltip)
 	.attr("cx", xy[0])
-	.attr("cy", xy[1]);
+	.attr("cy", xy[1])
+	.attr("r", radius(ridership));
 }
 
 function monthButtons() {
@@ -382,7 +383,7 @@ function monthButtons() {
 			.datum({"name":n})
 			.text(monthNames[j-1].substring(0,1))
 			.on("click", function(d) {
-				setMonth(bg.selectAll("circle.bart").transition(), d.name)
+				setMonth(stationSVG().transition(), d.name)
 			});
 		}
 	}
