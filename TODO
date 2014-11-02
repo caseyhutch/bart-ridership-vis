@@ -1,6 +1,5 @@
 Load added months without source changes.
 Finish whatever it was I started with bi-directional data.
-Tooltips for eBART/WSXT.
 Fix XXX in setMonth.
 Use relative positioning for tooltips.
 Choose custom centroids.

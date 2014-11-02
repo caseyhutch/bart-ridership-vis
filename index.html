@@ -72,8 +72,8 @@ monthButtons();
 // Make fake stations for ridership estimates for future stations
 // Ridership estimates pulled from Environmental Impact Reports
 // (Would love to find this for the SFO extension)
-addStation("WSXT", -121.939616,37.501836, 4700);
-addStation("eBART", -121.7854, 37.996247, 3900);
+addStation("Warm Springs / South Fremont Station", "WSXT", -121.939616,37.501836, 4700);
+addStation("East Contra Costa BART Extension", "eBART", -121.7854, 37.996247, 3900);
 
 // Set up the play button
 setupPlayButton();
@@ -204,7 +204,7 @@ function shortAbbreviation(abbreviation) {
 	return map[abbreviation];
 }
 
-function createStationSVG(stations) {
+function createStationsSVG(stations) {
 	stationSVG()
 	.data(stations)
 	.enter()
@@ -263,7 +263,7 @@ function loadBartStationsHandler(xml) {
 		});
 	}
 
-	createStationSVG(stations);
+	createStationsSVG(stations);
 
 	// Load ridership for each month from monthly csv files
 	loadRidership(months);
@@ -335,8 +335,9 @@ function monthLoaded(month, ridershipTotal) {
 }
 
 // This adds a dummy station used for eBART and WSXT projected ridership
-function addStation(long_abbr, lon, lat, ridership) {
+function addStation(name, long_abbr, lon, lat, ridership) {
 	var data = new Object();
+	data.name = name;
 	data.location = [lon,lat];
 	data.long_abbr = long_abbr;
 	data.short_abbr = long_abbr[0] + long_abbr[1];
@@ -344,16 +345,21 @@ function addStation(long_abbr, lon, lat, ridership) {
 
 	for (var i = 0; i < months.length; i++) {
 		data.ridership[months[i]] = new Object();
-		data.ridership[months[i]].total = ridership;
+		data.ridership[months[i]].total_exits = ridership;
 	}
 
 	var xy = projection(data.location);
 
-	d3.select("svg").append("circle").data([data])
+	d3.select("svg")
+	.append("circle")
+	.data([data])
 	.attr("class", "bart")
 	.attr("id", stationId)
+	.on("mouseover", showTooltip)
+	.on("mouseout", hideTooltip)
 	.attr("cx", xy[0])
-	.attr("cy", xy[1]);
+	.attr("cy", xy[1])
+	.attr("r", radius(ridership));
 }
 
 function monthButtons() {
