@@ -103,29 +103,34 @@ function loadGeoJson(p) {
 }
 
 function loadGeoJsonHandler(json) {
-	d3.select("#counties").selectAll("path")
-	.data(json.features).enter().append("path")
+	d3.select("#counties")
+	.selectAll("path")
+	.data(json.features)
+	.enter()
+	.append("path")
 	.attr("id", function (d) { return (d.properties.NAME); })
 	// LSAD is always "County" at the moment
 	.attr("class", function (d) { return (d.properties.LSAD) })
 	.attr("d", path)
-	.on("click", function (which) {
-		var to_point = d3.geo.centroid(which);
+	.on("click", clickToCenter(d));
+}
 
-		projection.rotate([-to_point[0],0]);
-		projection.center([0,to_point[1]]);
+function clickToCenter(which) {
+	var to_point = d3.geo.centroid(which);
 
-		bg.selectAll("path,circle").transition().duration(2000).attr("d", path)
-		.attr("cx", function(d) {
-			// Only circles have location, not paths
-			if (d.location !== undefined)
-				return projection(d.location)[0];
-		})
-		.attr("cy", function(d) {
-			// Only circles have location, not paths
-			if (d.location !== undefined)
-				return projection(d.location)[1];
-		});
+	projection.rotate([-to_point[0],0]);
+	projection.center([0,to_point[1]]);
+
+	d3.selectAll("path,circle").transition().duration(2000).attr("d", path)
+	.attr("cx", function(d) {
+		// Only circles have location, not paths
+		if (d.location !== undefined)
+			return projection(d.location)[0];
+	})
+	.attr("cy", function(d) {
+		// Only circles have location, not paths
+		if (d.location !== undefined)
+			return projection(d.location)[1];
 	});
 }
 
