@@ -66,9 +66,6 @@ var months = ["2008-01","2008-02","2008-03","2008-04","2008-05","2008-06","2008-
 	      "2013-01","2013-02","2013-03","2013-04","2013-05","2013-06","2013-07","2013-08","2013-09","2013-10","2013-11","2013-12",
 	      "2014-01","2014-02","2014-03","2014-04","2014-05","2014-06","2014-07","2014-08","2014-09"];
 
-// Load ridership for each month from monthly csv files
-loadRidership(months);
-
 // Add a button for each month loaded
 monthButtons();
 
@@ -85,13 +82,17 @@ setupPlayButton();
 //     Functions follow. Global scope code should be done above this line     //
 ////////////////////////////////////////////////////////////////////////////////
 
+function stationSVG() {
+	return bg.selectAll("circle.bart");
+}
+
 function setupPlayButton() {
 	d3.select("#playbutton")
 	.text("\u25B6")
 	.on("click", function() {
 		if (selected.month === months[months.length - 1])
 			// If we are at the last month go back to the beginning
-			tr = setMonth(bg.selectAll("circle.bart").transition(), months[0]);
+			tr = setMonth(stationSVG().transition(), months[0]);
 		else
 			play();
 	});
@@ -137,7 +138,7 @@ function play() {
 	}
 
 	// Start a transition
-	var tr = bg.selectAll("circle.bart").transition();
+	var tr = stationSVG().transition();
 
 	// Transition to each following month in order
 	for (; i < months.length; i++) {
@@ -204,14 +205,46 @@ function shortAbbreviation(abbreviation) {
 	return map[abbreviation];
 }
 
+function createStationSVG(stations) {
+	stationSVG()
+	.data(stations)
+	.enter()
+// XXX
+	.append("circle")
+	.attr("class", "bart")
+	.attr("id", stationId)
+
+	.attr("cx", function(d) {
+		if (d.location === undefined)
+			// If the station location isn't known yet, put the station off canvas.
+			return undefined;
+		return projection(d.location)[0];
+	})
+
+	.attr("cy", function(d) {
+		if (d.location === undefined) {
+			// If the station location isn't known yet, put the station off canvas.
+			return undefined;
+		}
+		return projection(d.location)[1];
+	})
+	.on("mouseover", showTooltip)
+	.on("mouseout", hideTooltip)
+	.on("click", function (d) {
+		selected.station = d.short_abbr;
+		// This select includes any dummy stations, intentionally causing them to disappear
+		// Seems the simplest way to deal with the lack of predicted per station ridership
+		setMonth(stationSVG().transition(), selected.month);
+	});
+}
+
 function loadBartStations() {
 	d3.xml("bart-stations.xml", loadBartStationsHandler);
 }
 
 function loadBartStationsHandler(xml) {
 	var xs = d3.select(xml).selectAll("station")[0];
-	var c =  bg.selectAll("circle.bart");
-	var stations = c.data();
+	var stations =  stationSVG().data();
 
 	for (var i = 0; i < xs.length; i++) {
 		var s = d3.select(xs[i]);
@@ -244,28 +277,10 @@ function loadBartStationsHandler(xml) {
 		t.location = [parseFloat(t.gtfs_longitude),parseFloat(t.gtfs_latitude)];
 	}
 
-	c.data(stations)
-	.enter()
-	.append("circle")
-	.attr("class", "bart")
-	.attr("id", stationId);
+	createStationSVG(stations);
 
-	c =  bg.selectAll("circle.bart");
-	c.attr("cx", function(d) {
-		return projection(d.location)[0];
-	})
-
-	.attr("cy", function(d) {
-		return projection(d.location)[1];
-	})
-	.on("mouseover", showTooltip)
-	.on("mouseout", hideTooltip)
-	.on("click", function (d) {
-		selected.station = d.short_abbr;
-		// This select includes any dummy stations, intentionally causing them to disappear
-		// Seems the simplest way to deal with the lack of predicted per station ridership
-		setMonth(d3.selectAll("circle.bart").transition(), selected.month);
-	});
+	// Load ridership for each month from monthly csv files
+	loadRidership(months);
 }
 
 function loadRidership(array) {
@@ -288,8 +303,7 @@ function loadMonth(name) {
 }
 
 function loadMonthHandler(name, csv) {
-	c = bg.selectAll("circle.bart");
-	var stations = c.data();
+	var stations = stationSVG().data();
 	var n = name.split(".")[0].split("/")[1];
 	var ridershipTotal = 0;
 
@@ -301,9 +315,6 @@ function loadMonthHandler(name, csv) {
 				break;
 			}
 		}
-
-		// Create a new record if it doesn't exist yet
-		stations[j] = stations[j] || new Object();
 
 		// Grab all the data for the station
 		var t = stations[j];
@@ -322,14 +333,6 @@ function loadMonthHandler(name, csv) {
 		ridershipTotal += t.ridership[n].total;
 	}
 
-	// Create an SVG element for the stations.
-	// XXX: Given that the x/y (lat/long) location isn't necessarily known yet this can trigger a flash of all the elements at 0,0
-	c.data(stations)
-	.enter()
-	.append("circle")
-	.attr("class", "bart")
-	.attr("id", stationId);
-
 	// XXX: Setup the height on the month button.
 	var btn = d3.select("button#y" + n);
 
@@ -341,7 +344,7 @@ function loadMonthHandler(name, csv) {
 	btn.data(btnd);
 
 	if (n === months[0])
-		setMonth(d3.selectAll("circle.bart").transition(), n);
+		setMonth(stationSVG().transition(), n);
 }
 
 // This adds a dummy station used for eBART and WSXT projected ridership
@@ -387,7 +390,7 @@ function monthButtons() {
 			.datum({"name":n})
 			.text(monthNames[j-1].substring(0,1))
 			.on("click", function(d) {
-				setMonth(bg.selectAll("circle.bart").transition(), d.name)
+				setMonth(stationSVG().transition(), d.name)
 			});
 		}
 	}
