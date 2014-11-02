@@ -243,38 +243,25 @@ function loadBartStations() {
 }
 
 function loadBartStationsHandler(xml) {
-	var xs = d3.select(xml).selectAll("station")[0];
-	var stations =  stationSVG().data();
+	xs = d3.select(xml).selectAll("station")[0];
+	var stations = [];
 
 	for (var i = 0; i < xs.length; i++) {
+		// Add a new object with all the data for this station from the xml file
 		var s = d3.select(xs[i]);
-		var long_abbr = s.select("abbr").text();
-		var short_abbr = shortAbbreviation(long_abbr);
-		var j;
-		// Search for an existing record
-		for (j = 0; j < stations.length; j++) {
-			if (stations[j].short_abbr === short_abbr) {
-				break;
-			}
-		}
-		// Create a new record if it doesn't exist yet
-		stations[j] = stations[j] || new Object();
-		// Grab all the data from the xml record
-		var t = stations[j];
-
-		t.long_abbr = long_abbr;
-		t.short_abbr = short_abbr;
-
-		t.name = s.select("name").text();
-		t.gtfs_latitude = s.select("gtfs_latitude").text();
-		t.gtfs_longitude = s.select("gtfs_longitude").text();
-		t.address = s.select("address").text();
-		t.city = s.select("city").text();
-		t.county = s.select("county").text();
-		t.state = s.select("state").text();
-		t.zipcode = s.select("zipcode").text();
-
-		t.location = [parseFloat(t.gtfs_longitude),parseFloat(t.gtfs_latitude)];
+		stations.push({
+			name: s.select("name").text(),
+			long_abbr: s.select("abbr").text(),
+			gtfs_latitude: s.select("gtfs_latitude").text(),
+			gtfs_longitude: s.select("gtfs_longitude").text(),
+			address: s.select("address").text(),
+			city: s.select("city").text(),
+			county: s.select("county").text(),
+			state: s.select("state").text(),
+			zipcode: s.select("zipcode").text(),
+			location: [parseFloat(s.select("gtfs_longitude").text()),parseFloat(s.select("gtfs_latitude").text())],
+			short_abbr: shortAbbreviation(s.select("abbr").text())
+		});
 	}
 
 	createStationSVG(stations);
